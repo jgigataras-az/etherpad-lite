@@ -833,8 +833,34 @@ exports.createDiffHTML = async function(padID, startRev, endRev) {
 
   let html = await padDiff.getHtml();
   let authors = await padDiff.getAuthors();
+  let splices = await padDiff.getSplices();
 
-  return { html, authors };
+  return { html, authors , splices};
+}
+
+exports.createDiffSince = async function(padId, startTime) {
+  let pad = await getPadSafe(padId, true);
+  let lastEdited = await pad.getLastEdit();
+  if (lastEdited < startTime) {
+    // No changes since startTime, return something (FIXME)
+    return { lastEdited };
+  }
+
+  let lowIndex = 0;
+  let highIndex = pad.getHeadRevisionNumber();
+
+  while (lowIndex < highIndex) {
+    let midIndex = Math.floor((lowIndex + highIndex) / 2);
+    let midTime = await pad.getRevisionDate(midIndex);
+
+    if (midTime < startTime) {
+      lowIndex = midIndex + 1;
+    } else {
+      highIndex = midIndex;
+    }
+  }
+  
+  return exports.createDiffHTML(padId, highIndex);
 }
 
 /**********************/

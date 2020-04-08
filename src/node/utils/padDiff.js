@@ -19,6 +19,7 @@ function PadDiff (pad, fromRev, toRev) {
   this._toRev = range.endRev;
   this._html = null;
   this._authors = [];
+  this._splices = null;
 }
 
 PadDiff.prototype._isClearAuthorship = function(changeset) {
@@ -92,7 +93,7 @@ PadDiff.prototype._createClearAuthorship = async function(rev) {
 PadDiff.prototype._createClearStartAtext = async function(rev) {
 
   // get the atext of this revision
-  let atext = this._pad.getInternalRevisionAText(rev);
+  let atext = await this._pad.getInternalRevisionAText(rev);
 
   // create the clearAuthorship changeset
   let changeset = await this._createClearAuthorship(rev);
@@ -134,6 +135,11 @@ PadDiff.prototype._addAuthors = function(authors) {
     }
   });
 };
+
+PadDiff.prototype._setSplices = function(changeSet) {
+  var splices = Changeset.toSplices(changeSet);
+  this._splices = splices;
+}
 
 PadDiff.prototype._createDiffAtext = async function() {
 
@@ -180,6 +186,7 @@ PadDiff.prototype._createDiffAtext = async function() {
 
   // if there are only clearAuthorship changesets, we don't get a superChangeset, so we can skip this step
   if (superChangeset) {
+    this._setSplices(superChangeset);
     let deletionChangeset = this._createDeletionChangeset(superChangeset, atext, this._pad.pool);
 
     // apply the superChangeset, which includes all addings
@@ -218,7 +225,15 @@ PadDiff.prototype.getAuthors = async function() {
     await this.getHtml();
   }
 
-  return self._authors;
+  return this._authors;
+}
+
+PadDiff.prototype.getSplices = async function() {
+  // check if html was already produced, if not produce it,
+  if (this._html == null) {
+    await this.getHtml();
+  }
+  return this._splices;
 }
 
 PadDiff.prototype._extendChangesetWithAuthor = function(changeset, author, apool) {
