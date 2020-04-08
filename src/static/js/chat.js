@@ -132,11 +132,12 @@ var chat = (function()
       var timeStr = hours + ":" + minutes;
 
       //create the authorclass
-      var authorClass = "author-" + msg.userId.replace(/[^a-y0-9]/g, function(c)
+      var cssEscapedUserId = msg.userId ? msg.userId.replace(/[^a-y0-9]/g, function(c)
       {
         if (c == ".") return "-";
         return 'z' + c.charCodeAt(0) + 'z';
-      });
+      }) : "null";
+      var authorClass = "author-" + cssEscapedUserId;
 
       var text = padutils.escapeHtmlWithClickableLinks(msg.text, "_blank");
 

@@ -17,7 +17,7 @@ ARG ETHERPAD_PLUGINS=
 
 # Set the following to production to avoid installing devDeps
 # this can be done with build args (and is mandatory to build ARM version)
-ENV NODE_ENV=development
+ENV NODE_ENV=production
 
 # Follow the principle of least privilege: run as unprivileged user.
 #
@@ -46,5 +46,7 @@ RUN for PLUGIN_NAME in ${ETHERPAD_PLUGINS}; do npm install "${PLUGIN_NAME}"; don
 # Copy the configuration file.
 COPY --chown=etherpad:etherpad ./settings.json.docker /opt/etherpad-lite/settings.json
 
-EXPOSE 9001
+VOLUME [ "/cert" ]
+
+EXPOSE 9001 443
 CMD ["node", "node_modules/ep_etherpad-lite/node/server.js"]
