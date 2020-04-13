@@ -137,17 +137,12 @@ PadDiff.prototype._addAuthors = function(authors) {
 };
 
 PadDiff.prototype._setSplices = function(changeSet) {
-  var splices = Changeset.toSplices(changeSet);
-  this._splices = splices;
+  // If no changes, then set as empty splice array (different from null because it has length).
+  this._splices = changeSet ? Changeset.toSplices(changeSet) : [];
 }
 
-PadDiff.prototype._createDiffAtext = async function() {
-
+PadDiff.prototype._createSuperChangeSet = async function() {
   let bulkSize = 100;
-
-  // get the cleaned startAText
-  let atext = await this._createClearStartAtext(this._fromRev);
-
   let superChangeset = null;
   let rev = this._fromRev + 1;
 
@@ -183,10 +178,18 @@ PadDiff.prototype._createDiffAtext = async function() {
     // add the authors to the PadDiff authorArray
     this._addAuthors(addedAuthors);
   }
+  this._setSplices(superChangeset);
+
+  return superChangeset;
+}
+
+PadDiff.prototype._createDiffAtext = async function() {
+  // get the cleaned startAText
+  let atext = await this._createClearStartAtext(this._fromRev);
+  let superChangeset = await this._createSuperChangeSet();
 
   // if there are only clearAuthorship changesets, we don't get a superChangeset, so we can skip this step
   if (superChangeset) {
-    this._setSplices(superChangeset);
     let deletionChangeset = this._createDeletionChangeset(superChangeset, atext, this._pad.pool);
 
     // apply the superChangeset, which includes all addings
@@ -220,18 +223,18 @@ PadDiff.prototype.getHtml = async function() {
 
 PadDiff.prototype.getAuthors = async function() {
 
-  // check if html was already produced, if not produce it, this generates the author array at the same time
-  if (this._html == null) {
-    await this.getHtml();
+  // check if changeset was already produced, if not produce it, this generates the author array at the same time
+  if (this._splices == null) {
+    await this._createSuperChangeSet();
   }
 
   return this._authors;
 }
 
 PadDiff.prototype.getSplices = async function() {
-  // check if html was already produced, if not produce it,
-  if (this._html == null) {
-    await this.getHtml();
+  // check if changeset was already produced, if not produce it,
+  if (this._splices == null) {
+    await this._createSuperChangeSet();
   }
   return this._splices;
 }

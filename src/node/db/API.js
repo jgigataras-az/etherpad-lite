@@ -833,9 +833,8 @@ exports.createDiffHTML = async function(padID, startRev, endRev) {
 
   let html = await padDiff.getHtml();
   let authors = await padDiff.getAuthors();
-  let splices = await padDiff.getSplices();
 
-  return { html, authors , splices};
+  return { html, authors };
 }
 
 exports.createDiffSince = async function(padId, startTime) {
@@ -843,7 +842,10 @@ exports.createDiffSince = async function(padId, startTime) {
   let lastEdited = await pad.getLastEdit();
   if (lastEdited < startTime) {
     // No changes since startTime, return something (FIXME)
-    return { lastEdited };
+    return { 
+      splices: [], 
+      authors: []
+    };
   }
 
   let lowIndex = 0;
@@ -859,8 +861,17 @@ exports.createDiffSince = async function(padId, startTime) {
       highIndex = midIndex;
     }
   }
-  
-  return exports.createDiffHTML(padId, highIndex);
+
+  try {
+    var padDiff = new PadDiff(pad, highIndex);
+  } catch (e) {
+    throw { stop: e.message };
+  }
+
+  let splices = await padDiff.getSplices();
+  let authors = (await padDiff.getAuthors()).map(exports.getAuthorName);
+
+  return { splices, authors };
 }
 
 /**********************/
