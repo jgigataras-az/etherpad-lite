@@ -869,7 +869,7 @@ exports.createDiffSince = async function(padId, startTime) {
   }
 
   let splices = await padDiff.getSplices();
-  let authors = (await padDiff.getAuthors()).map(exports.getAuthorName);
+  let authors = await Promise.all((await padDiff.getAuthors()).map(exports.getAuthorName));
 
   return { splices, authors };
 }
