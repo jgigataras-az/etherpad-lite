@@ -842,7 +842,8 @@ exports.createDiffSince = async function(padId, startTime) {
   let lastEdited = await pad.getLastEdit();
   if (lastEdited < startTime) {
     // No changes since startTime, return something (FIXME)
-    return { 
+    return {
+      padId,
       splices: [], 
       authors: []
     };
@@ -871,7 +872,7 @@ exports.createDiffSince = async function(padId, startTime) {
   let splices = await padDiff.getSplices();
   let authors = await Promise.all((await padDiff.getAuthors()).map(exports.getAuthorName));
 
-  return { splices, authors };
+  return { padId, splices, authors };
 }
 
 /**********************/
