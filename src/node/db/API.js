@@ -864,7 +864,7 @@ exports.createDiffSince = async function(padId, startTime) {
   }
 
   try {
-    var padDiff = new PadDiff(pad, highIndex);
+    var padDiff = new PadDiff(pad, highIndex ? highIndex - 1 : 0);
   } catch (e) {
     throw { stop: e.message };
   }
