@@ -413,10 +413,10 @@
    * Uncomment to customize.
    */
 
-  /*
+
   "toolbar": {
     "left": [
-      ["bold", "italic", "underline", "strikethrough"],
+      ["bold", "italic", "underline", "strikethrough", "addImage"],
       ["orderedlist", "unorderedlist", "indent", "outdent"],
       ["undo", "redo"],
       ["clearauthorship"]
@@ -430,7 +430,7 @@
       ["timeslider_export", "timeslider_returnToPad"]
     ]
   },
-  */
+
 
   /*
    * Expose Etherpad version in the web interface and in the Server http header.
@@ -496,5 +496,9 @@
       */
 
       ]
-    } // logconfig
+    }, // logconfig
+    "ep_image_upload": {
+      "fileTypes": ["jpeg", "jpg", "bmp", "gif", "png"],
+      "maxFileSize": 5000000
+    }
 }
