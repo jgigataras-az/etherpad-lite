@@ -1424,8 +1424,8 @@ exports.makeSplice = function (oldFullText, spliceStart, numRemoved, newText, op
 
 /**
  * Transforms a changeset into a list of splices in the form
- * [startChar, endChar, newText] meaning replace text from
- * startChar to endChar with newText
+ * [startChar, endChar, newText, lineNumber] meaning replace text from
+ * startChar to endChar with newText, with change starting at lineNumber
  * @param cs Changeset
  */
 exports.toSplices = function (cs) {
@@ -1434,6 +1434,7 @@ exports.toSplices = function (cs) {
   var splices = [];
 
   var oldPos = 0;
+  var lineNumber = 1; // start with line #1
   var iter = exports.opIterator(unpacked.ops);
   var charIter = exports.stringIterator(unpacked.charBank);
   var inSplice = false;
@@ -1442,16 +1443,19 @@ exports.toSplices = function (cs) {
     if (op.opcode == '=') {
       oldPos += op.chars;
       inSplice = false;
+      lineNumber += op.lines;
     } else {
       if (!inSplice) {
-        splices.push([oldPos, oldPos, ""]);
+        splices.push([oldPos, oldPos, "", lineNumber]);
         inSplice = true;
       }
       if (op.opcode == '-') {
         oldPos += op.chars;
         splices[splices.length - 1][1] += op.chars;
+        //no change to lineNumber
       } else if (op.opcode == '+') {
         splices[splices.length - 1][2] += charIter.take(op.chars);
+        lineNumber += op.lines;
       }
     }
   }
