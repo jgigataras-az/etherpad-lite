@@ -17,7 +17,8 @@ exports.expressCreateServer = function (hook_name, args, cb) {
     files = files.filter(el => !/\.swp$/.test(el))
 
     console.debug("Sent browser the following test specs:", files);
-    res.send("var specs_list = " + JSON.stringify(files) + ";\n");
+    res.setHeader('content-type', 'text/javascript');
+    res.end("var specs_list = " + JSON.stringify(files) + ";\n");
   });
 
   // path.join seems to normalize by default, but we'll just be explicit
@@ -58,7 +59,7 @@ exports.expressCreateServer = function (hook_name, args, cb) {
   });
 
   args.app.get('/tests/frontend', function (req, res) {
-    res.redirect('/tests/frontend/');
+    res.redirect('/tests/frontend/index.html');
   });
 }
 
