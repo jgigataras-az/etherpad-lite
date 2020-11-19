@@ -153,10 +153,10 @@
    */
 
   
-  "ssl" : {
+  /*"ssl" : {
             "key"  : "/cert/privkey1.pem",
             "cert" : "/cert/fullchain1.pem"
-          },
+          },*/
 
 
   /*
