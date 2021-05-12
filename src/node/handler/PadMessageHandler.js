@@ -50,20 +50,35 @@ exports.socketio = () => {
 };
 
 /**
- * A associative array that saves information about a session
- * key = sessionId
- * values = padId, readonlyPadId, readonly, author, rev
- *   padId = the real padId of the pad
- *   readonlyPadId = The readonly pad id of the pad
- *   readonly = Wether the client has only read access (true) or read/write access (false)
- *   rev = That last revision that was send to this client
- *   author = the author ID used for this session
+ * Contains information about socket.io connections:
+ *   - key: Socket.io socket ID.
+ *   - value: Object that is initially empty immediately after connect. Once the client's
+ *     CLIENT_READY message is processed, it has the following properties:
+ *       - auth: Object with the following properties copied from the client's CLIENT_READY message:
+ *           - padID: Pad ID requested by the user. Unlike the padId property described below, this
+ *             may be a read-only pad ID.
+ *           - sessionID: Copied from the client's sessionID cookie, which should be the value
+ *             returned from the createSession() HTTP API. This will be null/undefined if
+ *             createSession() isn't used or the portal doesn't set the sessionID cookie.
+ *           - token: User-supplied token.
+ *       - author: The user's author ID.
+ *       - padId: The real (not read-only) ID of the pad.
+ *       - readonlyPadId: The read-only ID of the pad.
+ *       - readonly: Whether the client has read-only access (true) or read/write access (false).
+ *       - rev: The last revision that was sent to the client.
  */
 const sessioninfos = {};
 exports.sessioninfos = sessioninfos;
 
-// Measure total amount of users
 stats.gauge('totalUsers', () => Object.keys(socketio.sockets.sockets).length);
+stats.gauge('activePads', () => {
+  const padIds = new Set();
+  for (const {padId} of Object.values(sessioninfos)) {
+    if (!padId) continue;
+    padIds.add(padId);
+  }
+  return padIds.size;
+});
 
 /**
  * A changeset queue per pad that is processed by handleUserChanges()
@@ -94,18 +109,6 @@ exports.handleConnect = (socket) => {
 
   // Initialize sessioninfos for this new session
   sessioninfos[socket.id] = {};
-
-  stats.gauge('activePads', () => {
-    const padIds = [];
-    for (const session of Object.keys(sessioninfos)) {
-      if (sessioninfos[session].padId) {
-        if (padIds.indexOf(sessioninfos[session].padId) === -1) {
-          padIds.push(sessioninfos[session].padId);
-        }
-      }
-    }
-    return padIds.length;
-  });
 };
 
 /**
@@ -210,22 +213,17 @@ exports.handleMessage = async (socket, message) => {
 
   const auth = thisSession.auth;
   if (!auth) {
-    console.error('Auth was never applied to a session. If you are using the ' +
-        'stress-test tool then restart Etherpad and the Stress test tool.');
+    const ip = settings.disableIPlogging ? 'ANONYMOUS' : (socket.request.ip || '<unknown>');
+    const msg = JSON.stringify(message, null, 2);
+    messageLogger.error(`Dropping pre-CLIENT_READY message from IP ${ip}: ${msg}`);
+    messageLogger.debug(
+        'If you are using the stress-test tool then restart Etherpad and the Stress test tool.');
     return;
-  }
-
-  // check if pad is requested via readOnly
-  let padId = auth.padID;
-
-  if (padId.indexOf('r.') === 0) {
-    // Pad is readOnly, first get the real Pad ID
-    padId = await readOnlyManager.getPadId(padId);
   }
 
   const {session: {user} = {}} = socket.client.request;
   const {accessStatus, authorID} =
-      await securityManager.checkAccess(padId, auth.sessionID, auth.token, user);
+      await securityManager.checkAccess(auth.padID, auth.sessionID, auth.token, user);
   if (accessStatus !== 'grant') {
     // Access denied. Send the reason to the user.
     socket.json.send({accessStatus});
@@ -717,13 +715,13 @@ exports.updatePadClients = async (pad) => {
   // but benefit of reusing cached revision object is HUGE
   const revCache = {};
 
-  // go through all sessions on this pad
-  for (const socket of roomSockets) {
-    const sid = socket.id;
+  await Promise.all(roomSockets.map(async (socket) => {
+    const sessioninfo = sessioninfos[socket.id];
+    // The user might have disconnected since _getRoomSockets() was called.
+    if (sessioninfo == null) return;
 
-    // send them all new changesets
-    while (sessioninfos[sid] && sessioninfos[sid].rev < pad.getHeadRevisionNumber()) {
-      const r = sessioninfos[sid].rev + 1;
+    while (sessioninfo.rev < pad.getHeadRevisionNumber()) {
+      const r = sessioninfo.rev + 1;
       let revision = revCache[r];
       if (!revision) {
         revision = await pad.getRevision(r);
@@ -734,33 +732,34 @@ exports.updatePadClients = async (pad) => {
       const revChangeset = revision.changeset;
       const currentTime = revision.meta.timestamp;
 
-      // next if session has not been deleted
-      if (sessioninfos[sid] == null) {
-        continue;
-      }
-
-      if (author === sessioninfos[sid].author) {
-        socket.json.send({type: 'COLLABROOM', data: {type: 'ACCEPT_COMMIT', newRev: r}});
+      let msg;
+      if (author === sessioninfo.author) {
+        msg = {type: 'COLLABROOM', data: {type: 'ACCEPT_COMMIT', newRev: r}};
       } else {
         const forWire = Changeset.prepareForWire(revChangeset, pad.pool);
-        const wireMsg = {type: 'COLLABROOM',
-          data: {type: 'NEW_CHANGES',
+        msg = {
+          type: 'COLLABROOM',
+          data: {
+            type: 'NEW_CHANGES',
             newRev: r,
             changeset: forWire.translated,
             apool: forWire.pool,
             author,
             currentTime,
-            timeDelta: currentTime - sessioninfos[sid].time}};
-
-        socket.json.send(wireMsg);
+            timeDelta: currentTime - sessioninfo.time,
+          },
+        };
       }
-
-      if (sessioninfos[sid]) {
-        sessioninfos[sid].time = currentTime;
-        sessioninfos[sid].rev = r;
+      try {
+        socket.json.send(msg);
+      } catch (err) {
+        messageLogger.error(`Failed to notify user of new revision: ${err.stack || err}`);
+        return;
       }
+      sessioninfo.time = currentTime;
+      sessioninfo.rev = r;
     }
-  }
+  }));
 };
 
 /**
